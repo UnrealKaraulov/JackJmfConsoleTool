@@ -7,3 +7,14 @@ Usage : ```JackTextureReplaceTool.exe test_replace.jmf replace_ex TEXTURE_OLD TE
 Texture old name, new name, scaleX, scaleY, shiftX, shiftY
 
 Support jmf 122 version
+
+
+Support multiple commands like:
+
+```
+JackTextureReplaceTool.exe test_replace.jmf replace TEXTURE_OLD TEXTURE_NEW 1.00 1.00 ^
+replace TEXTURE_OLD TEXTURE_NEW 1.00 1.00^
+replace TEXTURE_OLD TEXTURE_NEW 1.00 1.00^
+replace TEXTURE_OLD TEXTURE_NEW 1.00 1.00^
+replace TEXTURE_OLD TEXTURE_NEW 1.00 1.00^
+```
