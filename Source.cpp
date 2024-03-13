@@ -109,7 +109,58 @@ struct COLOR4
 struct vec3
 {
 	float x, y, z;
+	bool isZero()
+	{
+		return std::fabs(x) < 0.0001f && std::fabs(y) < 0.0001f && std::fabs(z) < 0.0001f;
+	}
+	std::string toKeyvalue(bool truncate = false, const std::string& suffix_x = " ", const std::string& suffix_y = " ", const std::string& suffix_z = "")
+	{
+		std::string parts[3] = { std::to_string(x) ,std::to_string(y), std::to_string(z) };
+
+		// remove trailing zeros to save some space
+		for (int i = 0; i < 3; i++)
+		{
+			auto it = parts[i].find('.');
+
+			if (it != std::string::npos)
+			{
+				parts[i].erase(parts[i].find_last_not_of('0') + 1, std::string::npos);
+
+				// strip dot if there's no fractional part
+				if (parts[i][parts[i].size() - 1] == '.')
+				{
+					parts[i] = parts[i].substr(0, parts[i].size() - 1);
+				}
+				if (truncate)
+				{
+					size_t dotPosition = parts[i].find('.');
+					if (dotPosition != std::string::npos) {
+						parts[i] = parts[i].substr(0, dotPosition);
+					}
+				}
+			}
+		}
+
+		return parts[0] + suffix_x + parts[1] + suffix_y + parts[2] + suffix_z;
+	}
+
 };
+
+std::string flt_to_str(float f)
+{
+	std::string retstr = std::to_string(f);
+	auto it = retstr.find('.');
+	if (it != std::string::npos)
+	{
+		retstr.erase(retstr.find_last_not_of('0') + 1, std::string::npos);
+		if (retstr[retstr.size() - 1] == '.')
+		{
+			retstr = retstr.substr(0, retstr.size() - 1);
+		}
+	}
+	return retstr;
+}
+
 struct vec2
 {
 	float x, y;
@@ -134,6 +185,11 @@ struct ReplaceStr
 	float shiftY;
 };
 
+void WriteKeyval(std::ofstream& f, const std::string& key, const std::string& val)
+{
+	f << "\"" << key << "\" \"" << val << "\"" << std::endl;
+}
+
 int main(int argc, char* argv[])
 {
 	std::cout << "JackJmfConsoleTool 1.0 by Karaulov" << std::endl;
@@ -141,7 +197,7 @@ int main(int argc, char* argv[])
 
 	int nArgs;
 	LPWSTR* szArglist = CommandLineToArgvW(GetCommandLineW(), &nArgs);
-	if (nArgs < 2)
+	if (nArgs <= 2)
 	{
 		std::cout << "NEED JackJmfConsoleTool.exe [.jmf path] + command" << std::endl;
 		std::cout << "commands [SUPPORT MULTIPLE COMMANDS AT SAME TIME!] : " << std::endl;
@@ -151,6 +207,8 @@ int main(int argc, char* argv[])
 		std::cout << "replace_ex [old texture] [new texture] [scale x] [scale y] [shift x] [shift y]" << std::endl;
 		std::cout << std::endl;
 		std::cout << "colorize -- random colors for all groups : no arguments" << std::endl;
+		std::cout << std::endl;
+		std::cout << "exportmap -- save directly to .map : no arguments" << std::endl;
 		std::cout << std::endl;
 		std::cout << std::endl;
 		std::cout << std::endl;
@@ -163,10 +221,16 @@ int main(int argc, char* argv[])
 
 	bool replace = false;
 	bool colorize = false;
+	bool exportmap = false;
 
 	if (szArglist[2] == std::wstring(L"colorize"))
 	{
 		colorize = true;
+		std::cout << "Entered colorize command! Now all groups has random colors!" << std::endl;
+	}
+	if (szArglist[2] == std::wstring(L"exportmap"))
+	{
+		exportmap = true;
 		std::cout << "Entered colorize command! Now all groups has random colors!" << std::endl;
 	}
 	else if (szArglist[2] == std::wstring(L"replace") && nArgs < 5)
@@ -179,17 +243,6 @@ int main(int argc, char* argv[])
 	{
 		std::cout << "bad replace usage!!" << std::endl;
 		std::cout << "NEED replace [old texture] [new texture] [scale x] [scale y] [shift x] [shift y]" << std::endl;
-		return 1;
-	}
-	else if (szArglist[2] != std::wstring(L"replace") && szArglist[2] != std::wstring(L"replace_ex"))
-	{
-		std::cout << "Bad command input:";
-		std::wcout << szArglist[2];
-		std::cout << "! Allowed commands : " << std::endl;
-		std::cout << std::endl;
-		std::cout << "replace [old texture] [new texture] [scale x] [scale y]" << std::endl;
-		std::cout << std::endl;
-		std::cout << "colorize -- random colors for all groups : no arguments" << std::endl;
 		return 1;
 	}
 	else if (szArglist[2] == std::wstring(L"replace_ex"))
@@ -206,13 +259,13 @@ int main(int argc, char* argv[])
 			tmpReplaceStr.shiftY = std::stof(argv[i + 5]);
 
 			std::cout << "Added new replace command: Texture " << tmpReplaceStr.tex1 << " to " <<
-				tmpReplaceStr.tex2 << " with scale " << std::to_string(tmpReplaceStr.scaleX) << "/" << std::to_string(tmpReplaceStr.scaleY) << " offset: " <<
-				std::to_string(tmpReplaceStr.shiftX) << "/" << std::to_string(tmpReplaceStr.shiftY) << std::endl;
+				tmpReplaceStr.tex2 << " with scale " << flt_to_str(tmpReplaceStr.scaleX) << "/" << flt_to_str(tmpReplaceStr.scaleY) << " offset: " <<
+				flt_to_str(tmpReplaceStr.shiftX) << "/" << flt_to_str(tmpReplaceStr.shiftY) << std::endl;
 
 			replaceList.push_back(tmpReplaceStr);
 		}
 	}
-	else
+	else if (szArglist[2] == std::wstring(L"replace"))
 	{
 		replace = true;
 		for (int i = 3; i + 3 < argc; i += 4)
@@ -226,14 +279,41 @@ int main(int argc, char* argv[])
 			tmpReplaceStr.shiftY = 0;
 
 			std::cout << "Added new replace command: Texture " << tmpReplaceStr.tex1 << " to " <<
-				tmpReplaceStr.tex2 << " with scale " << std::to_string(tmpReplaceStr.scaleX) << "/" << std::to_string(tmpReplaceStr.scaleY) << std::endl;
+				tmpReplaceStr.tex2 << " with scale " << flt_to_str(tmpReplaceStr.scaleX) << "/" << flt_to_str(tmpReplaceStr.scaleY) << std::endl;
 
 			replaceList.push_back(tmpReplaceStr);
 		}
 	}
+	else
+	{
+		std::cout << "Bad command input:";
+		std::wcout << szArglist[2];
+		std::cout << "! Allowed commands : " << std::endl;
+		std::cout << std::endl;
+		std::cout << "replace [old texture] [new texture] [scale x] [scale y]" << std::endl;
+		std::cout << std::endl;
+		std::cout << "replace_ex [old texture] [new texture] [scale x] [scale y] [shift x] [shift y]" << std::endl;
+		std::cout << std::endl;
+		std::cout << "colorize -- random colors for all groups : no arguments" << std::endl;
+		std::cout << std::endl;
+		std::cout << "exportmap -- save directly to .map : no arguments" << std::endl;
+		std::cout << std::endl;
+		std::cout << std::endl;
+		std::cout << std::endl;
+		return 1;
+	}
 
 	try
 	{
+		std::ofstream mapFile;
+		if (exportmap)
+		{
+			std::wstring mapfileName = std::wstring(szArglist[1]);
+			mapfileName.pop_back(); mapfileName.pop_back(); mapfileName.pop_back(); mapfileName.pop_back();
+			mapfileName += L"_converted.map";
+			mapFile = std::ofstream(mapfileName);
+		}
+
 		JackReader tmpJackReader(szArglist[1]);
 		if (tmpJackReader.is_open())
 		{
@@ -265,7 +345,7 @@ int main(int argc, char* argv[])
 			tmpJackReader.read<int>(exportPaths);
 			tmpJackWriter.write<int>(exportPaths);
 
-			while (exportPaths)
+			while (exportPaths > 0)
 			{
 				std::string path;
 				tmpJackReader.readLenStr(path);
@@ -309,7 +389,7 @@ int main(int argc, char* argv[])
 			tmpJackReader.read<int>(groups);
 			tmpJackWriter.write<int>(groups);
 
-			while (groups)
+			while (groups > 0)
 			{
 				int group_id;
 				int group_parent_id;
@@ -340,7 +420,7 @@ int main(int argc, char* argv[])
 			tmpJackReader.read<int>(visgroups);
 			tmpJackWriter.write<int>(visgroups);
 
-			while (visgroups)
+			while (visgroups > 0)
 			{
 				std::string name;
 				int visgroup_id;
@@ -379,7 +459,7 @@ int main(int argc, char* argv[])
 			tmpJackReader.read<int>(cameras);
 			tmpJackWriter.write<int>(cameras);
 
-			while (cameras)
+			while (cameras > 0)
 			{
 				vec3 eye_pos;
 				vec3 lookat_pos;
@@ -407,7 +487,7 @@ int main(int argc, char* argv[])
 			tmpJackReader.read<int>(pathes);
 			tmpJackWriter.write<int>(pathes);
 
-			while (pathes)
+			while (pathes > 0)
 			{
 				std::string classname;
 				std::string path_name;
@@ -434,7 +514,7 @@ int main(int argc, char* argv[])
 				tmpJackWriter.write<COLOR4>(color);
 				tmpJackWriter.write<int>(node_count);
 
-				while (node_count)
+				while (node_count > 0)
 				{
 					std::string name_override;
 					std::string fire_on_pass;
@@ -459,7 +539,7 @@ int main(int argc, char* argv[])
 					tmpJackWriter.write<int>(flags);
 					tmpJackWriter.write<int>(kv_count);
 
-					while (kv_count)
+					while (kv_count > 0)
 					{
 						std::string key;
 						std::string value;
@@ -485,6 +565,16 @@ int main(int argc, char* argv[])
 			while (tmpJackReader.readLenStr(className))
 			{
 				tmpJackWriter.writeLenStr(className);
+
+				if (exportmap)
+				{
+					mapFile << "{" << std::endl;
+					WriteKeyval(mapFile, "classname", className);
+					if (className == "worldspawn")
+					{
+						WriteKeyval(mapFile, "mapversion", "220");
+					}
+				}
 
 				vec3 origin;
 				int flags;
@@ -542,6 +632,18 @@ int main(int argc, char* argv[])
 				tmpJackReader.read<float>(sp_radius);
 				tmpJackReader.read(unknown);
 
+
+				if (exportmap && !origin.isZero())
+				{
+					WriteKeyval(mapFile, "origin", origin.toKeyvalue());
+				}
+
+				/*if (exportmap && !sp_angles.isZero())
+				{
+					WriteKeyval(mapFile, "angles", sp_angles.toKeyvalue());
+				}*/
+
+
 				tmpJackWriter.write<int>(sp_spawnflags);
 				tmpJackWriter.write<vec3>(sp_angles);
 				tmpJackWriter.write<int>(sp_rendering);
@@ -561,7 +663,7 @@ int main(int argc, char* argv[])
 				tmpJackReader.read<int>(keyvalues);
 				tmpJackWriter.write<int>(keyvalues);
 
-				while (keyvalues)
+				while (keyvalues > 0)
 				{
 					std::string key, value;
 
@@ -571,6 +673,10 @@ int main(int argc, char* argv[])
 					tmpJackWriter.writeLenStr(key);
 					tmpJackWriter.writeLenStr(value);
 
+					if (exportmap)
+					{
+						WriteKeyval(mapFile, key, value);
+					}
 
 					keyvalues--;
 				}
@@ -579,7 +685,7 @@ int main(int argc, char* argv[])
 				tmpJackReader.read<int>(entvisgroups);
 				tmpJackWriter.write<int>(entvisgroups);
 
-				while (entvisgroups)
+				while (entvisgroups > 0)
 				{
 					int group;
 
@@ -593,8 +699,13 @@ int main(int argc, char* argv[])
 				tmpJackReader.read<int>(brush_count);
 				tmpJackWriter.write<int>(brush_count);
 
-				while (brush_count)
+
+				while (brush_count > 0)
 				{
+					if (exportmap)
+					{
+						mapFile << "{" << std::endl;
+					}
 					int mesh_count;
 					int flags;
 					int group_id;
@@ -620,7 +731,7 @@ int main(int argc, char* argv[])
 					int brushvisgroups;
 					tmpJackReader.read<int>(brushvisgroups);
 					tmpJackWriter.write<int>(brushvisgroups);
-					while (brushvisgroups)
+					while (brushvisgroups > 0)
 					{
 						int group;
 
@@ -633,7 +744,7 @@ int main(int argc, char* argv[])
 					tmpJackReader.read<int>(facecount);
 					tmpJackWriter.write<int>(facecount);
 
-					while (facecount)
+					while (facecount > 0)
 					{
 						int render_flags;
 						int vertex_count;
@@ -688,12 +799,12 @@ int main(int argc, char* argv[])
 
 								std::cout << "Replace[" << replaced_textures << "] " << r.tex1 << " to " << r.tex2 << std::endl;
 
-								std::cout << "ScaleX " << std::to_string(scale.x) << " to " << std::to_string(newscale_x) << std::endl;
-								std::cout << "ScaleY " << std::to_string(scale.x) << " to " << std::to_string(newscale_x) << std::endl;
+								std::cout << "ScaleX " << flt_to_str(scale.x) << " to " << flt_to_str(newscale_x) << std::endl;
+								std::cout << "ScaleY " << flt_to_str(scale.x) << " to " << flt_to_str(newscale_x) << std::endl;
 
 
-								std::cout << "ShiftX " << std::to_string(shift_x) << " to " << std::to_string(newshift_x) << std::endl;
-								std::cout << "ShiftY " << std::to_string(shift_y) << " to " << std::to_string(newshift_y) << std::endl;
+								std::cout << "ShiftX " << flt_to_str(shift_x) << " to " << flt_to_str(newshift_x) << std::endl;
+								std::cout << "ShiftY " << flt_to_str(shift_y) << " to " << flt_to_str(newshift_y) << std::endl;
 
 								scale.x = newscale_x;
 								scale.y = newscale_y;
@@ -719,7 +830,9 @@ int main(int argc, char* argv[])
 						tmpJackWriter.write<float>(distance);
 						tmpJackWriter.write<int>(aligned_axis);
 
-						while (vertex_count)
+						std::vector<vec3> verts;
+
+						while (vertex_count > 0)
 						{
 							vec3 coordinates;
 							vec2 texture_uv;
@@ -733,14 +846,28 @@ int main(int argc, char* argv[])
 							tmpJackWriter.write<vec2>(texture_uv);
 							tmpJackWriter.write<int>(selection_state);
 
+							verts.push_back(coordinates);
 
 							vertex_count--;
 						}
+						
+						std::reverse(verts.begin(), verts.end());
+
+						for (int v = 0; v < 3; v++)
+						{
+							mapFile << "( " << verts[v].x << " " << verts[v].y << " " << verts[v].z << " ) ";
+						}
+
+						mapFile << std::string(texture_name);
+						mapFile << " [ " << right_axis.toKeyvalue() << " " << flt_to_str(shift_x) << " ] ";
+						mapFile << "[ " << down_axis.toKeyvalue() << " " << flt_to_str(shift_y) << " ] ";
+						mapFile << flt_to_str(angle) << " " << flt_to_str(scale.x) << " " << flt_to_str(scale.y) << std::endl;
+
 
 						facecount--;
 					}
 
-					while (mesh_count)
+					while (mesh_count > 0)
 					{
 						int width;
 						int height;
@@ -796,12 +923,12 @@ int main(int argc, char* argv[])
 
 								std::cout << "Replace[" << replaced_textures << "] " << r.tex1 << " to " << r.tex2 << std::endl;
 
-								std::cout << "ScaleX " << std::to_string(scale.x) << " to " << std::to_string(newscale_x) << std::endl;
-								std::cout << "ScaleY " << std::to_string(scale.x) << " to " << std::to_string(newscale_x) << std::endl;
+								std::cout << "ScaleX " << flt_to_str(scale.x) << " to " << flt_to_str(newscale_x) << std::endl;
+								std::cout << "ScaleY " << flt_to_str(scale.x) << " to " << flt_to_str(newscale_x) << std::endl;
 
 
-								std::cout << "ShiftX " << std::to_string(shift_x) << " to " << std::to_string(newshift_x) << std::endl;
-								std::cout << "ShiftY " << std::to_string(shift_y) << " to " << std::to_string(newshift_y) << std::endl;
+								std::cout << "ShiftX " << flt_to_str(shift_x) << " to " << flt_to_str(newshift_x) << std::endl;
+								std::cout << "ShiftY " << flt_to_str(shift_y) << " to " << flt_to_str(newshift_y) << std::endl;
 
 								scale.x = newscale_x;
 								scale.y = newscale_y;
@@ -830,6 +957,17 @@ int main(int argc, char* argv[])
 					}
 
 					brush_count--;
+
+					if (exportmap)
+					{
+						mapFile << "}" << std::endl;
+					}
+				}
+
+
+				if (exportmap)
+				{
+					mapFile << "}" << std::endl;
 				}
 			}
 
