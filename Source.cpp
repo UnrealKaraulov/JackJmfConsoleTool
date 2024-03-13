@@ -136,23 +136,25 @@ struct ReplaceStr
 
 int main(int argc, char* argv[])
 {
-	std::cout << "JackTextureReplaceTool 1.0 by Karaulov" << std::endl;
+	std::cout << "JackJmfConsoleTool 1.0 by Karaulov" << std::endl;
 	setlocale(LC_NUMERIC, "C");
 
 	int nArgs;
 	LPWSTR* szArglist = CommandLineToArgvW(GetCommandLineW(), &nArgs);
 	if (nArgs < 2)
 	{
-		std::cout << "NEED JackTextureReplaceTool.exe [.jmf path] + command" << std::endl;
-		std::cout << "commands : " << std::endl;
+		std::cout << "NEED JackJmfConsoleTool.exe [.jmf path] + command" << std::endl;
+		std::cout << "commands [SUPPORT MULTIPLE COMMANDS AT SAME TIME!] : " << std::endl;
 		std::cout << std::endl;
 		std::cout << "replace [old texture] [new texture] [scale x] [scale y]" << std::endl;
+		std::cout << std::endl;
+		std::cout << "replace_ex [old texture] [new texture] [scale x] [scale y] [shift x] [shift y]" << std::endl;
 		std::cout << std::endl;
 		std::cout << "colorize -- random colors for all groups : no arguments" << std::endl;
 		std::cout << std::endl;
 		std::cout << std::endl;
 		std::cout << std::endl;
-		std::cout << "Example JackTextureReplaceTool \"path \\ to \\ map.jmf\" tex00001 tex00002 2.0 2.0 tex00003 tex00004 2.0 2.0" << std::endl;
+		std::cout << "Example JackJmfConsoleTool \"path \\ to \\ map.jmf\" tex00001 tex00002 2.0 2.0 tex00003 tex00004 2.0 2.0" << std::endl;
 		return 1;
 	}
 

@@ -10,7 +10,7 @@
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{3b0d881e-fd00-46a5-a79f-b61edc74d83a}</ProjectGuid>
-    <RootNamespace>JackTextureReplaceTool</RootNamespace>
+    <RootNamespace>JackJmfConsoleTool</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
