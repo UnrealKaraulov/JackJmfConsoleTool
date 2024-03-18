@@ -9,8 +9,18 @@ Replace texture old name to new name with changes: scaleX, scaleY, shiftX, shift
 Usage : ```JackJmfConsoleTool.exe test_replace.jmf colorize```
 Randomize groups color (visgroups,groups,etc)
 
+Usage : ```JackJmfConsoleTool.exe test_replace.jmf export```
+Save .jmf to .map file (Warn: no wad list)
 
-Now support only jmf 122 version 
+Usage : ```JackJmfConsoleTool.exe test_replace.jmf flip```
+Swaps x/y coordinates in .jmf file (make map flipped)
+
+Usage : ```JackJmfConsoleTool.exe test_replace.jmf rotate```
+Rotates .jmf map by 90 CW
+
+
+
+Now support only jmf 122 and 121 version 
 
 
 Also support multiple commands like:
