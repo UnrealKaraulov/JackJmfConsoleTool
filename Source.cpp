@@ -161,6 +161,39 @@ std::string flt_to_str(float f)
 	return retstr;
 }
 
+std::vector<std::string> splitString(const std::string& str, const std::string& delimiter, int maxParts = 0)
+{
+	std::string s = str;
+	std::vector<std::string> split;
+	size_t pos;
+	while ((pos = s.find(delimiter)) != std::string::npos && (maxParts == 0 || (int)split.size() < maxParts - 1)) {
+		if (pos != 0) {
+			split.push_back(s.substr(0, pos));
+		}
+		s.erase(0, pos + delimiter.length());
+	}
+	if (!s.empty())
+		split.push_back(s);
+	return split;
+}
+
+vec3 parseVector(const std::string& s)
+{
+	vec3 v;
+	std::vector<std::string> parts = splitString(s, " ");
+
+	while (parts.size() < 3)
+	{
+		parts.push_back("0");
+	}
+
+	v.x = (float)atof(parts[0].c_str());
+	v.y = (float)atof(parts[1].c_str());
+	v.z = (float)atof(parts[2].c_str());
+	return v;
+}
+
+
 struct vec2
 {
 	float x, y;
@@ -169,6 +202,12 @@ struct MeshPoint
 {
 	vec3 position;
 	vec3 normal;
+	vec2 texture_uv;
+	int is_selected; // like in faces, or really unsigned char?
+};
+struct VertPoint
+{
+	vec3 position;
 	vec2 texture_uv;
 	int is_selected; // like in faces, or really unsigned char?
 };
@@ -192,7 +231,7 @@ void WriteKeyval(std::ofstream& f, const std::string& key, const std::string& va
 
 int main(int argc, char* argv[])
 {
-	std::cout << "JackJmfConsoleTool 1.0 by Karaulov" << std::endl;
+	std::cout << "JackJmfConsoleTool 1.1 by Karaulov" << std::endl;
 	setlocale(LC_NUMERIC, "C");
 
 	int nArgs;
@@ -222,16 +261,28 @@ int main(int argc, char* argv[])
 	bool replace = false;
 	bool colorize = false;
 	bool exportmap = false;
+	bool flip = false;
+	bool rotate = false;
 
 	if (szArglist[2] == std::wstring(L"colorize"))
 	{
 		colorize = true;
 		std::cout << "Entered colorize command! Now all groups has random colors!" << std::endl;
 	}
-	if (szArglist[2] == std::wstring(L"exportmap"))
+	else if (szArglist[2] == std::wstring(L"exportmap"))
 	{
 		exportmap = true;
-		std::cout << "Entered colorize command! Now all groups has random colors!" << std::endl;
+		std::cout << "Entered exportmap command! Exporting .map file ...!" << std::endl;
+	}
+	else if (szArglist[2] == std::wstring(L"flip"))
+	{
+		flip = true;
+		std::cout << "Entered flip command! Output jmf is flipped(swap x/y)! ...!" << std::endl;
+	}
+	else if (szArglist[2] == std::wstring(L"rotate"))
+	{
+		rotate = true;
+		std::cout << "Entered flip command! Output jmf is rotated in 90 CW! ...!" << std::endl;
 	}
 	else if (szArglist[2] == std::wstring(L"replace") && nArgs < 5)
 	{
@@ -334,11 +385,13 @@ int main(int argc, char* argv[])
 			tmpJackReader.read<int>(version);
 			tmpJackWriter.write<int>(version);
 
-			if (version != 122)
+			if (version != 122 && version != 121)
 			{
-				std::cout << "UNSUPPORTED JMF VERSION!\n";
+				std::cout << "UNSUPPORTED JMF VERSION [" << version << "]!\n";
 				return 1;
 			}
+
+			std::cout << "[INFO] JMF VERSION : [v" << version << "]!\n";
 
 			// EXPORT PATHES
 			int exportPaths;
@@ -354,7 +407,7 @@ int main(int argc, char* argv[])
 			}
 
 			// BACKGROUND IMAGES
-			for (int img = 0; img < 3; img++)
+			for (int img = 0; version >=122 && img < 3; img++)
 			{
 				std::string path;
 				double doubleScale;
@@ -474,6 +527,22 @@ int main(int argc, char* argv[])
 				if (colorize)
 					color.Randomize();
 
+				if (flip)
+				{
+					// swap pos
+					std::swap(eye_pos.x, eye_pos.y);
+
+					lookat_pos.y = 90.0f - lookat_pos.y;
+				}
+				if (rotate)
+				{
+					// swap and flip (rotate CW +90)
+					std::swap(eye_pos.x, eye_pos.y);
+					eye_pos.y *= -1;
+
+					lookat_pos.y -= 90.0f;
+				}
+
 				tmpJackWriter.write<vec3>(eye_pos);
 				tmpJackWriter.write<vec3>(lookat_pos);
 				tmpJackWriter.write<int>(flags);
@@ -523,13 +592,31 @@ int main(int argc, char* argv[])
 					int flags;
 					int kv_count;
 
-
 					tmpJackReader.readLenStr(name_override);
 					tmpJackReader.readLenStr(fire_on_pass);
 					tmpJackReader.read<vec3>(position);
 					tmpJackReader.read<vec3>(angles);
 					tmpJackReader.read<int>(flags);
 					tmpJackReader.read<int>(kv_count);
+
+
+
+					if (flip)
+					{
+						// swap pos
+						std::swap(position.x, position.y);
+						// flip angles
+						angles.y = 90.0f - angles.y;
+					}
+					if (rotate)
+					{
+						// swap and flip (rotate CW +90)
+						std::swap(position.x, position.y);
+						position.y *= -1;
+						// rotate angles
+						angles.y -= 90.0f;
+					}
+
 
 
 					tmpJackWriter.writeLenStr(name_override);
@@ -564,8 +651,6 @@ int main(int argc, char* argv[])
 
 			while (tmpJackReader.readLenStr(className))
 			{
-				tmpJackWriter.writeLenStr(className);
-
 				if (exportmap)
 				{
 					mapFile << "{" << std::endl;
@@ -581,6 +666,9 @@ int main(int argc, char* argv[])
 				int group_id;
 				int root_group_id;
 				COLOR4 color;
+
+				std::string specialkeys[13];
+
 				int sp_spawnflags;
 				vec3 sp_angles;
 				int sp_rendering;
@@ -605,17 +693,23 @@ int main(int argc, char* argv[])
 				if (colorize)
 					color.Randomize();
 
-				tmpJackWriter.write<vec3>(origin);
-				tmpJackWriter.write<int>(flags);
-				tmpJackWriter.write<int>(group_id);
-				tmpJackWriter.write<int>(root_group_id);
-				tmpJackWriter.write<COLOR4>(color);
+
+				if (flip)
+				{
+					// swap pos
+					std::swap(origin.x, origin.y);
+				}
+
+				if (rotate)
+				{
+					// swap and flip (rotate CW +90)
+					std::swap(origin.x, origin.y);
+					origin.y *= -1;
+				}
 
 				for (int i = 0; i < 13; i++)
 				{
-					std::string spec_key;
-					tmpJackReader.readLenStr(spec_key);
-					tmpJackWriter.writeLenStr(spec_key);
+					tmpJackReader.readLenStr(specialkeys[i]);
 				}
 
 				tmpJackReader.read<int>(sp_spawnflags);
@@ -638,10 +732,78 @@ int main(int argc, char* argv[])
 					WriteKeyval(mapFile, "origin", origin.toKeyvalue());
 				}
 
+				int keyvalues;
+				tmpJackReader.read<int>(keyvalues);
+
+				std::vector<std::string> key_list;
+				std::vector<std::string> val_list;
+
+				while (keyvalues > 0)
+				{
+					std::string key, value;
+
+					tmpJackReader.readKeyVal(key, value);
+
+					key_list.push_back(key);
+					val_list.push_back(value);
+
+
+					if (exportmap)
+					{
+						WriteKeyval(mapFile, key, value);
+					}
+
+					keyvalues--;
+				}
+
+
+				int entvisgroups;
+				tmpJackReader.read<int>(entvisgroups);
+				std::vector<int> entvgroups;
+
+				while (entvisgroups > 0)
+				{
+					int group;
+
+					tmpJackReader.read<int>(group);
+
+					entvgroups.push_back(group);
+
+					entvisgroups--;
+				}
+
+				int brush_count;
+				tmpJackReader.read<int>(brush_count);
+
+
+				tmpJackWriter.writeLenStr(className);
+
+				tmpJackWriter.write<vec3>(origin);
+				tmpJackWriter.write<int>(flags);
+				tmpJackWriter.write<int>(group_id);
+				tmpJackWriter.write<int>(root_group_id);
+				tmpJackWriter.write<COLOR4>(color);
+
+				for (int i = 0; i < 13; i++)
+				{
+					tmpJackWriter.writeLenStr(specialkeys[i]);
+				}
+
 				/*if (exportmap && !sp_angles.isZero())
 				{
 					WriteKeyval(mapFile, "angles", sp_angles.toKeyvalue());
 				}*/
+
+
+				if (flip)
+				{
+					sp_angles.y = 90.0f - sp_angles.y;
+				}
+
+				if (rotate)
+				{
+					sp_angles.y -= 90.0f;
+				}
 
 
 				tmpJackWriter.write<int>(sp_spawnflags);
@@ -659,44 +821,57 @@ int main(int argc, char* argv[])
 				tmpJackWriter.write(unknown);
 
 
-				int keyvalues;
-				tmpJackReader.read<int>(keyvalues);
-				tmpJackWriter.write<int>(keyvalues);
 
-				while (keyvalues > 0)
+				tmpJackWriter.write<int>((int)key_list.size());
+
+				for (size_t i = 0; i < key_list.size(); i++)
 				{
-					std::string key, value;
-
-					tmpJackReader.readLenStr(key);
-					tmpJackReader.readLenStr(value);
-
-					tmpJackWriter.writeLenStr(key);
-					tmpJackWriter.writeLenStr(value);
-
-					if (exportmap)
+					if (brush_count == 0)
 					{
-						WriteKeyval(mapFile, key, value);
+						if (key_list[i] == "angle")
+						{
+							float aval = atof(val_list[i].c_str());
+
+							if (flip)
+							{
+								aval = 90.0f - aval;
+							}
+
+							if (rotate)
+							{
+								aval -= 90.0f;
+							}
+
+							val_list[i] = flt_to_str(aval);
+						}
+						else if (key_list[i] == "angles")
+						{
+							vec3 vangle = parseVector(val_list[i]);
+
+							if (flip)
+							{
+								vangle.y = 90.0f - vangle.y;
+							}
+
+							if (rotate)
+							{
+								vangle.y -= 90.0f;
+							}
+
+							val_list[i] = vangle.toKeyvalue();
+						}
 					}
 
-					keyvalues--;
+					tmpJackWriter.writeKeyVal(key_list[i], val_list[i]);
 				}
 
-				int entvisgroups;
-				tmpJackReader.read<int>(entvisgroups);
-				tmpJackWriter.write<int>(entvisgroups);
+				tmpJackWriter.write<int>((int)entvgroups.size());
 
-				while (entvisgroups > 0)
+				for (auto g : entvgroups)
 				{
-					int group;
-
-					tmpJackReader.read<int>(group);
-					tmpJackWriter.write<int>(group);
-
-					entvisgroups--;
+					tmpJackWriter.write<int>(g);
 				}
 
-				int brush_count;
-				tmpJackReader.read<int>(brush_count);
 				tmpJackWriter.write<int>(brush_count);
 
 
@@ -779,6 +954,29 @@ int main(int argc, char* argv[])
 						tmpJackReader.read<float>(distance);
 						tmpJackReader.read<int>(aligned_axis);
 
+						if (flip)
+						{
+							// swap 
+							std::swap(right_axis.x, right_axis.y);
+							std::swap(down_axis.x, down_axis.y);
+							std::swap(normal.x, normal.y);
+							// flip angles
+							angle = 90.0f - angle;
+						}
+						if (rotate)
+						{
+							// swap and flip (rotate CW +90)
+							std::swap(right_axis.x, right_axis.y);
+							std::swap(down_axis.x, down_axis.y);
+							std::swap(normal.x, normal.y);
+							right_axis.y *= -1;
+							down_axis.y *= -1;
+							normal.y *= -1;
+							// rotate angles
+							angle -= 90.0f;
+						}
+
+
 						for (auto& r : replaceList)
 						{
 							if (_stricmp(r.tex1, texture_name) == 0)
@@ -830,32 +1028,48 @@ int main(int argc, char* argv[])
 						tmpJackWriter.write<float>(distance);
 						tmpJackWriter.write<int>(aligned_axis);
 
-						std::vector<vec3> verts;
+						std::vector<VertPoint> verts;
 
 						while (vertex_count > 0)
 						{
-							vec3 coordinates;
-							vec2 texture_uv;
-							int selection_state;
+							VertPoint tmpVertPoint;
 
-							tmpJackReader.read<vec3>(coordinates);
-							tmpJackReader.read<vec2>(texture_uv);
-							tmpJackReader.read<int>(selection_state);
-
-							tmpJackWriter.write<vec3>(coordinates);
-							tmpJackWriter.write<vec2>(texture_uv);
-							tmpJackWriter.write<int>(selection_state);
-
-							verts.push_back(coordinates);
+							tmpJackReader.read(tmpVertPoint);
+							verts.push_back(tmpVertPoint);
 
 							vertex_count--;
 						}
-						
+
+						if (flip)
+						{
+							std::reverse(verts.begin(), verts.end());
+						}
+
+						for (auto& v : verts)
+						{
+							if (flip)
+							{
+								// swap 
+								std::swap(v.position.x, v.position.y);
+								std::swap(v.texture_uv.x, v.texture_uv.y);
+							}
+							if (rotate)
+							{
+								// swap and flip (rotate CW +90)
+								std::swap(v.position.x, v.position.y);
+								std::swap(v.texture_uv.x, v.texture_uv.y);
+								v.position.y *= -1;
+								v.texture_uv.y *= -1;
+							}
+
+							tmpJackWriter.write(v);
+						}
+
 						std::reverse(verts.begin(), verts.end());
 
 						for (int v = 0; v < 3; v++)
 						{
-							mapFile << "( " << verts[v].x << " " << verts[v].y << " " << verts[v].z << " ) ";
+							mapFile << "( " << verts[v].position.x << " " << verts[v].position.y << " " << verts[v].position.z << " ) ";
 						}
 
 						mapFile << std::string(texture_name);
@@ -881,7 +1095,7 @@ int main(int argc, char* argv[])
 						unsigned char unknown[12];
 						int surface_flags;
 						char texture_name[64];
-						unsigned char mesh_unknown[4];
+						unsigned char mesh_unknown[4]; // points?
 						MeshPoint points[1024];
 
 
@@ -901,6 +1115,52 @@ int main(int argc, char* argv[])
 						tmpJackReader.read(mesh_unknown);
 						tmpJackReader.read(points);
 
+
+						if (flip)
+						{
+							// swap 
+							std::swap(right_axis.x, right_axis.y);
+							std::swap(down_axis.x, down_axis.y);
+							// flip angles
+							angle = 90.0f - angle;
+						}
+						if (rotate)
+						{
+							// swap and flip (rotate CW +90)
+							std::swap(right_axis.x, right_axis.y);
+							std::swap(down_axis.x, down_axis.y);
+							right_axis.y *= -1;
+							down_axis.y *= -1;
+							// rotate angles
+							angle -= 90.0f;
+						}
+
+						if (flip || rotate)
+						{
+							for (int i = 0; i < 1024; i++)
+							{
+								MeshPoint& tmpPoint = points[i];
+
+								if (flip)
+								{
+									// swap 
+									std::swap(tmpPoint.position.x, tmpPoint.position.y);
+									std::swap(tmpPoint.normal.x, tmpPoint.normal.y);
+									std::swap(tmpPoint.texture_uv.x, tmpPoint.texture_uv.y);
+								}
+
+								if (rotate)
+								{
+									// swap and flip (rotate CW +90)
+									std::swap(tmpPoint.position.x, tmpPoint.position.y);
+									std::swap(tmpPoint.normal.x, tmpPoint.normal.y);
+									std::swap(tmpPoint.texture_uv.x, tmpPoint.texture_uv.y);
+									tmpPoint.position.y *= -1;
+									tmpPoint.normal.y *= -1;
+									tmpPoint.texture_uv.y *= -1;
+								}
+							}
+						}
 
 						for (auto& r : replaceList)
 						{
@@ -975,6 +1235,8 @@ int main(int argc, char* argv[])
 			{
 				std::cout << "Replaced:" << replaced_textures << " textures!";
 			}
+
+			std::cout << "[INFO] File saved!\n";
 		}
 		else
 		{
